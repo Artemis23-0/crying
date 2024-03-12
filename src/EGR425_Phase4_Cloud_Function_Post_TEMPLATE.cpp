@@ -48,6 +48,8 @@ struct deviceDetails {
     double accX;
     double accY;
     double accZ;
+    int timeCaptured;
+    int cloudUploadTime;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -191,6 +193,27 @@ void loop()
     //gcfGetWithHeader(URL_GCF_UPLOAD, userId, epochTime, &details);
     gcfGetWithUserHeader(URL_GCF_RETRIEVE, userId, &latestDocDetails);
     delay(2000);
+
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(50, 50);
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.setTextSize(5);
+    M5.Lcd.print("Cloud Data");
+    M5.Lcd.setCursor(50, 100);
+    M5.Lcd.setTextSize(3);
+    M5.Lcd.print("Temp: ");
+    M5.Lcd.print(latestDocDetails.temp);
+    M5.Lcd.setCursor(50, 150);
+    M5.Lcd.print("Humidity: ");
+    M5.Lcd.print(latestDocDetails.rHum);
+    M5.Lcd.setCursor(50, 200);
+    M5.Lcd.print("Time: ");
+    M5.Lcd.print(latestDocDetails.timeCaptured);
+    M5.Lcd.setCursor(50, 250);
+    M5.Lcd.print("Cloud Time: ");
+    M5.Lcd.print(latestDocDetails.cloudUploadTime);
+    delay(2000);
+    
 
 }
 
@@ -338,15 +361,11 @@ int httpGetLatestWithHeaders(String serverURL, String *headerKeys, String *heade
     String timeCaptured = objHeaderM5Details["otherDetails"]["timeCaptured"];
     String temp = objHeaderM5Details["shtDetails"]["temp"];
     String humidity = objHeaderM5Details["shtDetails"]["rHum"];
-    Serial.println("Cloud Time: ");
-    Serial.println(cloudTime);
-    Serial.println("Time Captured: ");
-    Serial.println(timeCaptured);
-    Serial.println("Temperature: ");
-    Serial.println(temp);
-    Serial.println("Humidity: ");
-    Serial.println(humidity);
-
+    details->cloudUploadTime = cloudTime.toInt();
+    details->timeCaptured = timeCaptured.toInt();
+    details->temp = temp.toDouble();
+    details->rHum = humidity.toDouble();
+    
     // Print the response code and message
     Serial.printf("HTTP%scode: %d\n%s\n\n", httpResCode > 0 ? " " : " error ", httpResCode, http.getString().c_str());
 
