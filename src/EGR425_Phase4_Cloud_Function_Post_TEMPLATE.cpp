@@ -197,10 +197,9 @@ void loop()
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.setCursor(50, 50);
     M5.Lcd.setTextColor(WHITE);
-    M5.Lcd.setTextSize(5);
+    M5.Lcd.setTextSize(3);
     M5.Lcd.print("Cloud Data");
     M5.Lcd.setCursor(50, 100);
-    M5.Lcd.setTextSize(3);
     M5.Lcd.print("Temp: ");
     M5.Lcd.print(latestDocDetails.temp);
     M5.Lcd.setCursor(50, 150);
@@ -213,7 +212,7 @@ void loop()
     M5.Lcd.print("Cloud Time: ");
     M5.Lcd.print(latestDocDetails.cloudUploadTime);
     delay(2000);
-    
+
 
 }
 
