@@ -8,6 +8,7 @@
 #include <WiFiUdp.h>            // Time Protocol Libraries
 #include <Adafruit_VCNL4040.h>  // Sensor libraries
 #include "Adafruit_SHT4x.h"     // Sensor libraries
+#include <cstdlib>
 
 ////////////////////////////////////////////////////////////////////
 // TODO 1: Enter your URL addresses
@@ -36,6 +37,9 @@ NTPClient timeClient(ntpUDP);
 unsigned long lastTime = 0;
 unsigned long timerDelayMs = 2000; 
 
+// Variables
+bool gotNewDetails = false;
+
 ////////////////////////////////////////////////////////////////////
 // TODO 3: Device Details Structure
 ////////////////////////////////////////////////////////////////////
@@ -48,8 +52,8 @@ struct deviceDetails {
     double accX;
     double accY;
     double accZ;
-    int timeCaptured;
-    int cloudUploadTime;
+    long long timeCaptured;
+    long long cloudUploadTime;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -190,30 +194,34 @@ void loop()
     // Post data (and possibly file)
     ///////////////////////////////////////////////////////////
     // Option 1: Just post data
-    //gcfGetWithHeader(URL_GCF_UPLOAD, userId, epochTime, &details);
+    Serial.println("Posting new data");
+    gcfGetWithHeader(URL_GCF_UPLOAD, userId, epochTime, &details);
+    Serial.println("Done Posting New Data");
+    delay(2000);
+    Serial.println("Getting the new data");
     gcfGetWithUserHeader(URL_GCF_RETRIEVE, userId, &latestDocDetails);
     delay(2000);
 
-    M5.Lcd.fillScreen(BLACK);
-    M5.Lcd.setCursor(50, 50);
-    M5.Lcd.setTextColor(WHITE);
-    M5.Lcd.setTextSize(3);
-    M5.Lcd.print("Cloud Data");
-    M5.Lcd.setCursor(50, 100);
-    M5.Lcd.print("Temp: ");
-    M5.Lcd.print(latestDocDetails.temp);
-    M5.Lcd.setCursor(50, 150);
-    M5.Lcd.print("Humidity: ");
-    M5.Lcd.print(latestDocDetails.rHum);
-    M5.Lcd.setCursor(50, 200);
-    M5.Lcd.print("Time: ");
-    M5.Lcd.print(latestDocDetails.timeCaptured);
-    M5.Lcd.setCursor(50, 250);
-    M5.Lcd.print("Cloud Time: ");
-    M5.Lcd.print(latestDocDetails.cloudUploadTime);
-    delay(2000);
-
-
+    if (gotNewDetails) {
+        M5.Lcd.fillScreen(BLACK);
+        M5.Lcd.setCursor(120, 10);
+        M5.Lcd.setTextColor(WHITE);
+        M5.Lcd.setTextSize(1);
+        M5.Lcd.print("Cloud Data");
+        M5.Lcd.setCursor(10, 50);
+        M5.Lcd.print("Temp: ");
+        M5.Lcd.print(latestDocDetails.temp);
+        M5.Lcd.setCursor(10, 100);
+        M5.Lcd.print("Humidity: ");
+        M5.Lcd.print(latestDocDetails.rHum);
+        M5.Lcd.setCursor(10, 150);
+        M5.Lcd.print("Time: ");
+        M5.Lcd.print(latestDocDetails.timeCaptured);
+        M5.Lcd.setCursor(10, 200);
+        M5.Lcd.print("Cloud Time: ");
+        M5.Lcd.print(latestDocDetails.cloudUploadTime);
+    }
+    gotNewDetails = false;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -321,6 +329,7 @@ String generateM5DetailsHeader(String userId, time_t time, deviceDetails *detail
 int httpGetWithHeaders(String serverURL, String *headerKeys, String *headerVals, int numHeaders) {
     // Make GET request to serverURL
     HTTPClient http;
+    Serial.println("Starting HTTP");
     http.begin(serverURL.c_str());
     
 	////////////////////////////////////////////////////////////////////
@@ -328,13 +337,11 @@ int httpGetWithHeaders(String serverURL, String *headerKeys, String *headerVals,
 	////////////////////////////////////////////////////////////////////
     for (int i = 0; i < numHeaders; i++)
         http.addHeader(headerKeys[i].c_str(), headerVals[i].c_str());
-    
-    // Post the headers (NO FILE)
+    Serial.println("Added Headers");
+
+    Serial.println("Posting the headers");
     int httpResCode = http.GET();
     Serial.print(http.getString());
-
-    // Print the response code and message
-    Serial.printf("HTTP%scode: %d\n%s\n\n", httpResCode > 0 ? " " : " error ", httpResCode, http.getString().c_str());
 
     // Free resources and return response code
     http.end();
@@ -344,6 +351,7 @@ int httpGetWithHeaders(String serverURL, String *headerKeys, String *headerVals,
 int httpGetLatestWithHeaders(String serverURL, String *headerKeys, String *headerVals, int numHeaders, deviceDetails *details) {
     // Make GET request to serverURL
     HTTPClient http;
+    Serial.println("Starting Http");
     http.begin(serverURL.c_str());
     
 	////////////////////////////////////////////////////////////////////
@@ -351,25 +359,59 @@ int httpGetLatestWithHeaders(String serverURL, String *headerKeys, String *heade
 	////////////////////////////////////////////////////////////////////
     for (int i = 0; i < numHeaders; i++)
         http.addHeader(headerKeys[i].c_str(), headerVals[i].c_str());
-    
+    Serial.println("Added Headers");
+
     // Post the headers (NO FILE)
     int httpResCode = http.GET();
-    StaticJsonDocument<650> objHeaderM5Details;
-    deserializeJson(objHeaderM5Details, http.getString().c_str());
-    String cloudTime = objHeaderM5Details["otherDetails"]["cloudUploadTime"];
-    String timeCaptured = objHeaderM5Details["otherDetails"]["timeCaptured"];
-    String temp = objHeaderM5Details["shtDetails"]["temp"];
-    String humidity = objHeaderM5Details["shtDetails"]["rHum"];
-    details->cloudUploadTime = cloudTime.toInt();
-    details->timeCaptured = timeCaptured.toInt();
-    details->temp = temp.toDouble();
-    details->rHum = humidity.toDouble();
-    
-    // Print the response code and message
-    Serial.printf("HTTP%scode: %d\n%s\n\n", httpResCode > 0 ? " " : " error ", httpResCode, http.getString().c_str());
+    String result = http.getString();
 
+    Serial.println("Result:");
+    Serial.println(result);
+
+    if (httpResCode == 200) {
+        
+    Serial.println("deserializing");
+    StaticJsonDocument<850> objHeaderM5Details;
+
+    DeserializationError error = deserializeJson(objHeaderM5Details, result);
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+    }
+
+    Serial.println("deserialized");
+    String cloudTime = objHeaderM5Details["otherDetails"]["cloudUploadTime"];
+    Serial.print("cloud time:");
+    Serial.println(cloudTime);
+    String timeCaptured = objHeaderM5Details["otherDetails"]["timeCaptured"];
+    Serial.print("time caputred:");
+    Serial.println(timeCaptured);
+    String temp = objHeaderM5Details["shtDetails"]["temp"];
+    Serial.print("temperature:");
+    Serial.println(temp);
+    String humidity = objHeaderM5Details["shtDetails"]["rHum"];
+    Serial.print("humidity:");
+    Serial.println(humidity);
+
+    Serial.println("converting details:");
+    char* endPtr;
+    details->cloudUploadTime = std::strtoll(cloudTime.c_str(), &endPtr, 10);
+    Serial.print("cloud time:");
+    Serial.println(details->cloudUploadTime);
+    Serial.println("Converted cloud time");
+    char* endPtr2;
+    details->timeCaptured = std::strtoll(timeCaptured.c_str(), &endPtr2, 10);
+    Serial.println("Converted time caputred");
+    details->temp = temp.toDouble();
+    Serial.println("Converted temp");
+    details->rHum = humidity.toDouble();
+    Serial.println("Converted humidty");
+    }
+    Serial.println("Done converting");
     // Free resources and return response code
     http.end();
+    Serial.println("Ended HTTP");
+    gotNewDetails = true;
     return httpResCode;
 }
 
