@@ -22,10 +22,8 @@ const String URL_GCF_RETRIEVE = "https://us-west2-egr425-lab3-2024.cloudfunction
 ////////////////////////////////////////////////////////////////////
 // TODO 2: Enter your WiFi Credentials
 ////////////////////////////////////////////////////////////////////
-// String wifiNetworkName = "CBU-LANCERS";
-// String wifiPassword = "LiveY0urPurp0se";
-String wifiNetworkName = "karman";
-String wifiPassword = "112233009988";
+String wifiNetworkName = "CBU-LANCERS";
+String wifiPassword = "LiveY0urPurp0se";
 
 // Initialize library objects (sensors and Time protocols)
 Adafruit_VCNL4040 vcnl4040 = Adafruit_VCNL4040();
@@ -35,10 +33,15 @@ NTPClient timeClient(ntpUDP);
 
 // Time variables
 unsigned long lastTime = 0;
-unsigned long timerDelayMs = 2000; 
+unsigned long timerDelay = 5000; 
 
 // Variables
 bool gotNewDetails = false;
+
+// Screen states
+enum Screen { S_Live, S_Cloud};
+static Screen screen = S_Live;
+static bool stateChangedThisLoop = true;
 
 ////////////////////////////////////////////////////////////////////
 // TODO 3: Device Details Structure
@@ -131,6 +134,16 @@ void loop()
     // Read in button data and store
     M5.update();
 
+    if (M5.BtnB.wasPressed()) {
+        if (screen == S_Live) {
+            screen = S_Cloud;
+        } else {
+            screen = S_Live;
+        }
+        stateChangedThisLoop = true;
+        lastTime = millis();
+    }
+
     ///////////////////////////////////////////////////////////
     // Read Sensor Values
     ///////////////////////////////////////////////////////////
@@ -178,15 +191,6 @@ void loop()
     
     // Device details
     deviceDetails details;
-    details.prox = prox;
-    details.ambientLight = ambientLight;
-    details.whiteLight = whiteLight;
-    details.temp = temp.temperature;
-    details.rHum = rHum.relative_humidity;
-    details.accX = accX;
-    details.accY = accY;
-    details.accZ = accZ;
-
 
     deviceDetails latestDocDetails;
 
@@ -194,33 +198,69 @@ void loop()
     // Post data (and possibly file)
     ///////////////////////////////////////////////////////////
     // Option 1: Just post data
-    Serial.println("Posting new data");
-    gcfGetWithHeader(URL_GCF_UPLOAD, userId, epochTime, &details);
-    Serial.println("Done Posting New Data");
-    delay(2000);
-    Serial.println("Getting the new data");
-    gcfGetWithUserHeader(URL_GCF_RETRIEVE, userId, &latestDocDetails);
-    delay(2000);
-
-    if (gotNewDetails) {
-        M5.Lcd.fillScreen(BLACK);
-        M5.Lcd.setCursor(120, 10);
-        M5.Lcd.setTextColor(WHITE);
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.print("Cloud Data");
-        M5.Lcd.setCursor(10, 50);
-        M5.Lcd.print("Temp: ");
-        M5.Lcd.print(latestDocDetails.temp);
-        M5.Lcd.setCursor(10, 100);
-        M5.Lcd.print("Humidity: ");
-        M5.Lcd.print(latestDocDetails.rHum);
-        M5.Lcd.setCursor(10, 150);
-        M5.Lcd.print("Time: ");
-        M5.Lcd.print(latestDocDetails.timeCaptured);
-        M5.Lcd.setCursor(10, 200);
-        M5.Lcd.print("Cloud Time: ");
-        M5.Lcd.print(latestDocDetails.cloudUploadTime);
+    if ((millis() - lastTime) > timerDelay) {
+        Serial.println("Posting new data");
+        gcfGetWithHeader(URL_GCF_UPLOAD, userId, epochTime, &details);
+        Serial.println("Done Posting New Data");
+        Serial.println("Getting the new data");
+        gcfGetWithUserHeader(URL_GCF_RETRIEVE, userId, &latestDocDetails);
+        stateChangedThisLoop = true;
+        lastTime = millis();
     }
+        details.prox = prox;
+        details.ambientLight = ambientLight;
+        details.whiteLight = whiteLight;
+        details.temp = temp.temperature;
+        details.rHum = rHum.relative_humidity;
+        details.accX = accX;
+        details.accY = accY;
+        details.accZ = accZ;
+        details.timeCaptured = epochTime;
+        details.cloudUploadTime = 0;
+    // Changing to and from screens
+    if (stateChangedThisLoop) {
+        if (screen == S_Cloud) {
+        if (gotNewDetails) {
+            M5.Lcd.fillScreen(BLACK);
+            M5.Lcd.setCursor(120, 10);
+            M5.Lcd.setTextColor(WHITE);
+            M5.Lcd.setTextSize(1);
+            M5.Lcd.print("Cloud Data");
+            M5.Lcd.setCursor(10, 50);
+            M5.Lcd.print("Temp: ");
+            M5.Lcd.print(latestDocDetails.temp);
+            M5.Lcd.setCursor(10, 100);
+            M5.Lcd.print("Humidity: ");
+            M5.Lcd.print(latestDocDetails.rHum);
+            M5.Lcd.setCursor(10, 150);
+            M5.Lcd.print("Time: ");
+            M5.Lcd.print(latestDocDetails.timeCaptured);
+            M5.Lcd.setCursor(10, 200);
+            M5.Lcd.print("Cloud Time: ");
+            M5.Lcd.print(latestDocDetails.cloudUploadTime);
+        }
+        } else if(screen == S_Live){
+            M5.Lcd.fillScreen(BLACK);
+            M5.Lcd.setCursor(120, 10);
+            M5.Lcd.setTextColor(WHITE);
+            M5.Lcd.setTextSize(1);
+            M5.Lcd.print("Live Data");
+            M5.Lcd.setCursor(10, 50);
+            M5.Lcd.print("Temp: ");
+            M5.Lcd.print(details.temp);
+            M5.Lcd.setCursor(10, 100);
+            M5.Lcd.print("Humidity: ");
+            M5.Lcd.print(details.rHum);
+            M5.Lcd.setCursor(10, 150);
+            M5.Lcd.print("Time: ");
+            M5.Lcd.print(details.timeCaptured);
+            M5.Lcd.setCursor(10, 200);
+            M5.Lcd.print("Cloud Time: ");
+            M5.Lcd.print(details.cloudUploadTime);
+        }
+        
+    }
+    stateChangedThisLoop = false;
     gotNewDetails = false;
 }
 
